@@ -118,61 +118,51 @@
     top: 0;
     z-index: 6;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    padding: 14px 0 10px;
-    background: linear-gradient(180deg, rgba(6,9,18,0.92) 0%, rgba(6,9,18,0.78) 70%, rgba(6,9,18,0) 100%);
+    padding: 10px 14px 8px;
+    background: linear-gradient(180deg, rgba(6,9,18,0.94) 0%, rgba(6,9,18,0.82) 70%, rgba(6,9,18,0) 100%);
     border-bottom: 1px solid var(--border);
     box-shadow: 0 18px 34px -14px rgba(0,0,0,0.65);
     flex-shrink: 0;
   }
-  #core-sphere { display: block; }
-  #core-caption {
-    position: absolute;
-    bottom: 8px;
-    left: 0; right: 0;
-    text-align: center;
-    font-family: "Rajdhani", sans-serif;
-    font-size: 11px;
-    letter-spacing: 0.18em;
-    color: var(--accent);
-    text-shadow: 0 0 8px rgba(85, 226, 255, 0.6);
-    opacity: 0.85;
-    pointer-events: none;
+  #hud-strip {
+    width: 100%;
+    max-width: 320px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 2px;
   }
-  .hud-corner {
-    position: absolute;
-    top: 10px;
-    left: 14px;
+  #hud-tl {
     font-family: "Rajdhani", sans-serif;
     font-size: 10.5px;
-    line-height: 1.6;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.03em;
     color: var(--accent);
     opacity: 0.75;
-    text-shadow: 0 0 6px rgba(85, 226, 255, 0.4);
-    pointer-events: none;
-    white-space: pre;
+    text-shadow: 0 0 6px rgba(85, 226, 255, 0.35);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
   }
   #hud-radar {
-    position: absolute;
-    top: 10px;
-    right: 14px;
-    width: 30px; height: 30px;
+    position: relative;
+    flex-shrink: 0;
+    margin-left: 10px;
+    width: 22px; height: 22px;
     border-radius: 50%;
     border: 1px solid var(--border-strong);
     background: radial-gradient(circle, rgba(85,226,255,0.06) 0%, transparent 70%);
     overflow: hidden;
-    pointer-events: none;
   }
-  #hud-radar::before, #hud-radar::after {
+  #hud-radar::before {
     content: "";
     position: absolute;
-    border: 1px solid rgba(85, 226, 255, 0.18);
+    inset: 5px;
+    border: 1px solid rgba(85, 226, 255, 0.2);
     border-radius: 50%;
   }
-  #hud-radar::before { inset: 6px; }
-  #hud-radar::after { inset: 12px; }
   #hud-radar-sweep {
     position: absolute;
     inset: 0;
@@ -181,16 +171,21 @@
   }
   @keyframes radar-spin { to { transform: rotate(360deg); } }
 
+  #core-sphere { display: block; margin: 2px 0; max-width: 100%; height: auto; }
+
+  #hud-bottom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    margin-top: 2px;
+  }
   #hud-eq {
-    position: absolute;
-    bottom: 26px;
-    left: 0; right: 0;
     display: flex;
     align-items: flex-end;
     justify-content: center;
     gap: 4px;
-    height: 16px;
-    pointer-events: none;
+    height: 14px;
   }
   #hud-eq span {
     width: 3px;
@@ -210,24 +205,14 @@
   #hud-eq.active span { animation-name: eq-active; animation-duration: 0.6s; }
   @keyframes eq-active { 0%, 100% { height: 4px; } 50% { height: 16px; } }
 
-  #hud-bars {
-    position: absolute;
-    top: 62px;
-    left: 14px;
-    display: flex;
-    align-items: flex-end;
-    gap: 2px;
-    height: 18px;
-    pointer-events: none;
+  #core-caption {
+    font-family: "Rajdhani", sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--accent);
+    text-shadow: 0 0 8px rgba(85, 226, 255, 0.6);
+    opacity: 0.85;
   }
-  #hud-bars span {
-    width: 3px;
-    border-radius: 1px;
-    background: var(--accent);
-    opacity: 0.5;
-  }
-  #hud-bars span.u { background: var(--accent); opacity: 0.65; }
-  #hud-bars span.a { background: #ffffff; opacity: 0.35; }
 
   #warning-banner {
     background: var(--warning-bg);
@@ -504,12 +489,15 @@
   </header>
 
   <div id="core-wrap">
-    <div id="hud-tl" class="hud-corner hud-label"></div>
-    <div id="hud-bars"></div>
-    <div id="hud-radar" aria-hidden="true"><div id="hud-radar-sweep"></div></div>
-    <canvas id="core-sphere" width="280" height="220"></canvas>
-    <div id="hud-eq"><span></span><span></span><span></span><span></span><span></span></div>
-    <div id="core-caption" class="hud-label">STANDBY</div>
+    <div id="hud-strip">
+      <span id="hud-tl" class="hud-label"></span>
+      <div id="hud-radar" aria-hidden="true"><div id="hud-radar-sweep"></div></div>
+    </div>
+    <canvas id="core-sphere" width="220" height="190"></canvas>
+    <div id="hud-bottom">
+      <div id="hud-eq"><span></span><span></span><span></span><span></span><span></span></div>
+      <div id="core-caption" class="hud-label">STANDBY</div>
+    </div>
   </div>
 
   <div id="warning-banner">
@@ -944,29 +932,13 @@
     var hudEl = document.getElementById("hud-tl");
     if (!hudEl) return;
     var sessCount = persistedConversations.length + sessionConversations.length;
-    var lines = [
-      "MODEL  " + (settings.geminiModel || "-"),
-      "SESS   " + sessCount,
-      "MSGS   " + (conv ? conv.messages.length : 0),
-      "LAST   " + (lastLatencyMs != null ? (lastLatencyMs / 1000).toFixed(1) + "s" : "--")
+    var parts = [
+      (settings.geminiModel || "-").toUpperCase(),
+      "SESS " + sessCount,
+      "MSGS " + (conv ? conv.messages.length : 0),
+      lastLatencyMs != null ? (lastLatencyMs / 1000).toFixed(1) + "s" : "--"
     ];
-    hudEl.textContent = lines.join("\n");
-    renderHudBars(conv);
-  }
-
-  function renderHudBars(conv) {
-    var barsEl = document.getElementById("hud-bars");
-    if (!barsEl) return;
-    barsEl.innerHTML = "";
-    var recent = conv ? conv.messages.slice(-8) : [];
-    var maxLen = recent.reduce(function (m, msg) { return Math.max(m, msg.content.length); }, 1);
-    recent.forEach(function (msg) {
-      var bar = document.createElement("span");
-      var h = Math.max(2, Math.round((msg.content.length / maxLen) * 18));
-      bar.style.height = h + "px";
-      bar.className = msg.role === "user" ? "u" : "a";
-      barsEl.appendChild(bar);
-    });
+    hudEl.textContent = parts.join("  ・  ");
   }
 
   function refreshAll() {
