@@ -103,19 +103,22 @@
 
   /* --- コア（パーティクルスフィア） --- */
   #core-wrap {
-    position: relative;
+    position: sticky;
+    top: 0;
+    z-index: 6;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 10px 0 4px;
-    background: rgba(6, 9, 18, 0.4);
+    padding: 14px 0 10px;
+    background: linear-gradient(180deg, rgba(6,9,18,0.92) 0%, rgba(6,9,18,0.78) 70%, rgba(6,9,18,0) 100%);
     border-bottom: 1px solid var(--border);
+    box-shadow: 0 18px 34px -14px rgba(0,0,0,0.65);
     flex-shrink: 0;
   }
   #core-sphere { display: block; }
   #core-caption {
     position: absolute;
-    bottom: 6px;
+    bottom: 8px;
     left: 0; right: 0;
     text-align: center;
     font-family: "Rajdhani", sans-serif;
@@ -153,7 +156,11 @@
     flex-direction: column;
     gap: 10px;
   }
-  .bubble-row { display: flex; }
+  .bubble-row { display: flex; animation: rise-in 0.28s ease-out; }
+  @keyframes rise-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
   .bubble-row.user { justify-content: flex-end; }
   .bubble {
     max-width: 82%;
@@ -398,7 +405,7 @@
   </header>
 
   <div id="core-wrap">
-    <canvas id="core-sphere" width="220" height="140"></canvas>
+    <canvas id="core-sphere" width="280" height="220"></canvas>
     <div id="core-caption" class="hud-label">STANDBY</div>
   </div>
 
@@ -497,19 +504,24 @@
     "待機中":       { color: [85, 226, 255],  speed: 0.35, jitter: 0.01, pulse: 0.05, caption: "READY" },
     "録音中(音声認識)": { color: [255, 184, 77], speed: 0.9,  jitter: 0.05, pulse: 0.18, caption: "LISTENING" },
     "回答生成中":    { color: [140, 255, 235], speed: 1.6,  jitter: 0.03, pulse: 0.12, caption: "THINKING" },
+    "出力中":       { color: [200, 255, 250], speed: 0.8,  jitter: 0.015, pulse: 0.07, caption: "SPEAKING" },
     "完了":         { color: [110, 240, 180], speed: 0.4,  jitter: 0.0, pulse: 0.06, caption: "ONLINE" },
     "エラー":       { color: [255, 93, 114],  speed: 0.6,  jitter: 0.06, pulse: 0.2, caption: "ERROR" }
   };
   var current = MOODS["未設定"];
   var target = MOODS["未設定"];
   var mix = { color: current.color.slice(), speed: current.speed, jitter: current.jitter, pulse: current.pulse };
+  var burst = 0; // 出力の一文字ごとに加算され、球体を瞬間的に明るく/大きくする
   var captionEl = document.getElementById("core-caption");
 
   function setMood(statusLabel) {
     target = MOODS[statusLabel] || MOODS["未設定"];
     if (captionEl) captionEl.textContent = target.caption;
   }
-  window.__core = { setMood: setMood };
+  function pulse() {
+    burst = Math.min(1, burst + 0.4);
+  }
+  window.__core = { setMood: setMood, pulse: pulse };
 
   var angleY = 0, angleX = 0.4, t = 0;
 
@@ -522,24 +534,43 @@
     mix.jitter = lerp(mix.jitter, target.jitter, 0.04);
     mix.pulse = lerp(mix.pulse, target.pulse, 0.04);
     for (var c = 0; c < 3; c++) mix.color[c] = lerp(mix.color[c], target.color[c], 0.04);
+    burst *= 0.86; // 出力パルスの減衰
 
     angleY += 0.006 * mix.speed * 10 * 0.1 + 0.003;
     angleX = 0.4 + Math.sin(t * 0.3) * 0.08;
 
     ctx.clearRect(0, 0, cssW, cssH);
 
-    var col = mix.color.map(function (v) { return Math.round(v); });
-    var breathe = 1 + Math.sin(t * 2.2) * mix.pulse;
+    var col = mix.color.map(function (v) { return Math.min(255, Math.round(v + burst * 45)); });
+    var breathe = 1 + Math.sin(t * 2.2) * mix.pulse + burst * 0.10;
 
     // 中心グロー
     var glowR = radius * 1.15 * breathe;
     var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
-    grad.addColorStop(0, "rgba(" + col.join(",") + ",0.20)");
+    grad.addColorStop(0, "rgba(" + col.join(",") + "," + (0.20 + burst * 0.18) + ")");
     grad.addColorStop(1, "rgba(" + col.join(",") + ",0)");
     ctx.fillStyle = grad;
     ctx.beginPath();
     ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
     ctx.fill();
+
+    // HUDリング（回転する破線の輪）
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.strokeStyle = "rgba(" + col.join(",") + "," + (0.35 + burst * 0.25) + ")";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 10]);
+    ctx.lineDashOffset = -t * 26;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, radius * 1.34, radius * 0.42, 0.5, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([1, 7]);
+    ctx.lineDashOffset = t * 34;
+    ctx.strokeStyle = "rgba(" + col.join(",") + "," + (0.22 + burst * 0.2) + ")";
+    ctx.beginPath();
+    ctx.ellipse(0, 0, radius * 1.22, radius * 0.34, -0.6, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
 
     var cosY = Math.cos(angleY), sinY = Math.sin(angleY);
     var cosX = Math.cos(angleX), sinX = Math.sin(angleX);
@@ -547,7 +578,7 @@
     var projected = [];
     for (var i = 0; i < points.length; i++) {
       var p = points[i];
-      var jitter = mix.jitter * Math.sin(t * 3 + i);
+      var jitter = mix.jitter * Math.sin(t * 3 + i) + burst * 0.03 * Math.sin(i * 12.9);
       var px = p.x * (1 + jitter), py = p.y * (1 + jitter), pz = p.z * (1 + jitter);
 
       // Y軸回転
@@ -562,7 +593,7 @@
       var sx = cx + x1 * scale * perspective;
       var sy = cy + y2 * scale * perspective;
       var depthAlpha = (z2 + 1) / 2;
-      projected.push({ x: sx, y: sy, a: 0.15 + depthAlpha * 0.85, r: 0.6 + depthAlpha * 1.6 });
+      projected.push({ x: sx, y: sy, a: 0.15 + depthAlpha * 0.85, r: 0.6 + depthAlpha * 1.6 + burst * 0.8 });
     }
 
     for (var j = 0; j < projected.length; j++) {
@@ -634,7 +665,7 @@
 
   var STATUS = {
     UNSET: "未設定", IDLE: "待機中", RECORDING: "録音中(音声認識)",
-    GENERATING: "回答生成中", DONE: "完了", ERROR: "エラー"
+    GENERATING: "回答生成中", SPEAKING: "出力中", DONE: "完了", ERROR: "エラー"
   };
 
   // ---------- DOM参照 ----------
@@ -687,20 +718,20 @@
 
   function setStatus(s) {
     el.statusText.textContent = s;
-    var busy = (s === STATUS.RECORDING || s === STATUS.GENERATING);
+    var busy = (s === STATUS.RECORDING || s === STATUS.GENERATING || s === STATUS.SPEAKING);
     el.cancelBtn.style.display = busy ? "block" : "none";
     updateInputEnabled();
     if (window.__core && window.__core.setMood) window.__core.setMood(s);
   }
   function updateStatusForKeyState() {
     var current = el.statusText.textContent;
-    if (current === STATUS.RECORDING || current === STATUS.GENERATING) return;
+    if (current === STATUS.RECORDING || current === STATUS.GENERATING || current === STATUS.SPEAKING) return;
     setStatus(getGeminiKey() ? STATUS.IDLE : STATUS.UNSET);
   }
 
   function updateInputEnabled() {
     var hasConv = currentConversationId !== null;
-    var busy = (el.statusText.textContent === STATUS.RECORDING || el.statusText.textContent === STATUS.GENERATING);
+    var busy = (el.statusText.textContent === STATUS.RECORDING || el.statusText.textContent === STATUS.GENERATING || el.statusText.textContent === STATUS.SPEAKING);
     el.input.disabled = !hasConv;
     el.sendBtn.disabled = !hasConv || busy || el.input.value.trim() === "";
     el.micBtn.disabled = !hasConv || busy || !recognition;
@@ -730,6 +761,8 @@
     });
   }
 
+  var pendingRevealMessage = null; // タイプライター表示中のメッセージ（参照一致で判定）
+
   function renderMessages() {
     var conv = findConversation(currentConversationId);
     el.messages.innerHTML = "";
@@ -740,6 +773,7 @@
       el.messages.appendChild(empty);
       return;
     }
+    var revealTargetEl = null;
     conv.messages.forEach(function (m) {
       var row = document.createElement("div");
       row.className = "bubble-row " + m.role;
@@ -750,12 +784,47 @@
       roleLabel.textContent = m.role === "user" ? "あなた" : "AI";
       bubble.appendChild(roleLabel);
       var body = document.createElement("span");
-      body.textContent = m.content;
+      var isRevealTarget = (m === pendingRevealMessage);
+      body.textContent = isRevealTarget ? "" : m.content;
       bubble.appendChild(body);
       row.appendChild(bubble);
       el.messages.appendChild(row);
+      if (isRevealTarget) revealTargetEl = body;
     });
     el.messages.scrollTop = el.messages.scrollHeight;
+    if (revealTargetEl) startReveal(pendingRevealMessage.content, revealTargetEl);
+  }
+
+  function startReveal(text, targetEl) {
+    var i = 0;
+    var total = text.length;
+    // 長文でも読み終わりが長くなりすぎないよう、文字数に応じて速度を調整する
+    var totalDuration = Math.min(3800, Math.max(500, total * 16));
+    var perCharMs = Math.max(6, totalDuration / Math.max(total, 1));
+    var charsPerTick = perCharMs < 10 ? Math.ceil(10 / perCharMs) : 1;
+    setStatus(STATUS.SPEAKING);
+
+    function step() {
+      if (revealSkip) {
+        targetEl.textContent = text;
+        pendingRevealMessage = null;
+        revealSkip = false;
+        setStatus(STATUS.DONE);
+        return;
+      }
+      i += charsPerTick;
+      targetEl.textContent = text.slice(0, i);
+      el.messages.scrollTop = el.messages.scrollHeight;
+      if (window.__core && window.__core.pulse) window.__core.pulse();
+      if (i < total) {
+        setTimeout(step, perCharMs);
+      } else {
+        targetEl.textContent = text;
+        pendingRevealMessage = null;
+        setStatus(STATUS.DONE);
+      }
+    }
+    step();
   }
 
   function renderHeader() {
@@ -896,10 +965,11 @@
 
     callGemini(apiKey, settings.geminiModel, turns, settings.systemInstruction).then(function (reply) {
       if (task.cancelled) return;
-      conv.messages.push({ role: "assistant", content: reply, createdAt: Date.now() });
+      var assistantMsg = { role: "assistant", content: reply, createdAt: Date.now() };
+      conv.messages.push(assistantMsg);
       touchConversation(conv);
-      setStatus(STATUS.DONE);
-      refreshAll();
+      pendingRevealMessage = assistantMsg;
+      refreshAll(); // renderMessages() 内でタイプライター表示と球体のパルスが開始される
     }).catch(function (err) {
       if (task.cancelled) return;
       // 入力文は既にユーザー発言として保存・表示済みのため失われない。
@@ -909,9 +979,12 @@
     });
   }
 
+  var revealSkip = false;
+
   function cancelCurrent() {
     if (currentTask) currentTask.cancelled = true;
     if (recognizing && recognition) recognition.stop();
+    if (pendingRevealMessage) revealSkip = true; // 出力中なら即座に全文表示して終える
     updateStatusForKeyState();
   }
 
