@@ -285,14 +285,14 @@
   </header>
   <div id="settings-body">
     <div class="field">
-      <label for="claude-key-input">Claude APIキー</label>
-      <input type="password" id="claude-key-input" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <div class="hint" id="claude-key-hint"></div>
-      <button class="test-btn" id="test-claude-btn">接続確認</button>
+      <label for="gemini-key-input">Gemini APIキー</label>
+      <input type="password" id="gemini-key-input" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="hint" id="gemini-key-hint"></div>
+      <button class="test-btn" id="test-gemini-btn">接続確認</button>
     </div>
     <div class="field">
-      <label for="claude-model-input">Claudeモデル名</label>
-      <input type="text" id="claude-model-input">
+      <label for="gemini-model-input">Geminiモデル名</label>
+      <input type="text" id="gemini-model-input">
     </div>
     <div class="field">
       <label for="system-instruction-input">システム指示</label>
@@ -313,11 +313,11 @@
 
   // ---------- ストレージ ----------
   var STORAGE_SETTINGS = "paia_settings";
-  var STORAGE_CLAUDE_KEY = "paia_claude_key";
+  var STORAGE_GEMINI_KEY = "paia_gemini_key";
   var STORAGE_CONVERSATIONS = "paia_conversations";
 
   var defaultSettings = {
-    claudeModel: "claude-sonnet-4-5",
+    geminiModel: "gemini-2.5-flash",
     systemInstruction: "",
     historyEnabled: true
   };
@@ -335,8 +335,8 @@
   function saveSettings(s) {
     localStorage.setItem(STORAGE_SETTINGS, JSON.stringify(s));
   }
-  function getClaudeKey() { return localStorage.getItem(STORAGE_CLAUDE_KEY) || ""; }
-  function setClaudeKey(v) { localStorage.setItem(STORAGE_CLAUDE_KEY, v); }
+  function getGeminiKey() { return localStorage.getItem(STORAGE_GEMINI_KEY) || ""; }
+  function setGeminiKey(v) { localStorage.setItem(STORAGE_GEMINI_KEY, v); }
   function maskKey(v) {
     if (!v) return "";
     if (v.length <= 4) return "*".repeat(v.length);
@@ -386,10 +386,10 @@
     openSettingsBtn: document.getElementById("open-settings-btn"),
     settingsModal: document.getElementById("settings-modal"),
     closeSettingsBtn: document.getElementById("close-settings-btn"),
-    claudeKeyInput: document.getElementById("claude-key-input"),
-    claudeKeyHint: document.getElementById("claude-key-hint"),
-    testClaudeBtn: document.getElementById("test-claude-btn"),
-    claudeModelInput: document.getElementById("claude-model-input"),
+    geminiKeyInput: document.getElementById("gemini-key-input"),
+    geminiKeyHint: document.getElementById("gemini-key-hint"),
+    testGeminiBtn: document.getElementById("test-gemini-btn"),
+    geminiModelInput: document.getElementById("gemini-model-input"),
     systemInstructionInput: document.getElementById("system-instruction-input"),
     historyToggle: document.getElementById("history-toggle"),
     saveSettingsBtn: document.getElementById("save-settings-btn"),
@@ -424,7 +424,7 @@
   function updateStatusForKeyState() {
     var current = el.statusText.textContent;
     if (current === STATUS.RECORDING || current === STATUS.GENERATING) return;
-    setStatus(getClaudeKey() ? STATUS.IDLE : STATUS.UNSET);
+    setStatus(getGeminiKey() ? STATUS.IDLE : STATUS.UNSET);
   }
 
   function updateInputEnabled() {
@@ -541,41 +541,53 @@
     if (isPersisted(conv)) persistConversations(persistedConversations);
   }
 
-  // ---------- Claude API ----------
+  // ---------- Gemini API ----------
   function trimHistory(turns, max) {
     max = max || 40;
     if (turns.length <= max) return turns;
     return turns.slice(turns.length - max);
   }
 
-  function callClaude(apiKey, model, turns, systemInstruction) {
-    var body = { model: model, max_tokens: 4096, messages: turns };
-    if (systemInstruction) body.system = systemInstruction;
-    return fetch("https://api.anthropic.com/v1/messages", {
+  function callGemini(apiKey, model, turns, systemInstruction) {
+    // Gemini は role "user" / "model"、本文は parts[].text という形式。
+    var contents = turns.map(function (t) {
+      return { role: t.role === "assistant" ? "model" : "user", parts: [{ text: t.content }] };
+    });
+    var body = { contents: contents, generationConfig: { maxOutputTokens: 4096 } };
+    if (systemInstruction) {
+      body.systemInstruction = { parts: [{ text: systemInstruction }] };
+    }
+    var url = "https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(model) + ":generateContent";
+    return fetch(url, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true"
+        "x-goog-api-key": apiKey
       },
       body: JSON.stringify(body)
     }).then(function (res) {
       return res.json().then(function (data) {
         if (res.ok) {
-          var text = (data.content || []).filter(function (b) { return b.type === "text"; })
-                        .map(function (b) { return b.text; }).join("").trim();
+          var candidate = (data.candidates || [])[0];
+          var parts = (candidate && candidate.content && candidate.content.parts) || [];
+          var text = parts.map(function (p) { return p.text || ""; }).join("").trim();
+          if (!text && candidate && candidate.finishReason && candidate.finishReason !== "STOP") {
+            throw new Error("回答を生成できませんでした（理由: " + candidate.finishReason + "）。");
+          }
           return text;
         }
+        var status = (data.error && data.error.status) || "";
         var err;
-        if (res.status === 401 || res.status === 403) {
-          err = "Claude APIキーが正しくありません。設定を確認してください。";
+        if (res.status === 400 && status === "INVALID_ARGUMENT") {
+          err = "Gemini APIキーが正しくありません。設定を確認してください。";
+        } else if (res.status === 401 || res.status === 403) {
+          err = "Gemini APIキーが正しくありません。設定を確認してください。";
         } else if (res.status === 429) {
           err = "利用上限に達しています。しばらく時間をおいて再試行してください。";
         } else if (res.status >= 500) {
-          err = "Claude側で一時的なエラーが発生しました。時間をおいて再試行してください。";
+          err = "Gemini側で一時的なエラーが発生しました。時間をおいて再試行してください。";
         } else {
-          err = "Claude APIエラー（コード: " + res.status + "）";
+          err = "Gemini APIエラー（コード: " + res.status + "）";
         }
         throw new Error(err);
       });
@@ -587,10 +599,10 @@
   function sendMessage() {
     var text = el.input.value.trim();
     if (!text) return;
-    var apiKey = getClaudeKey();
+    var apiKey = getGeminiKey();
     if (!apiKey) {
       setStatus(STATUS.ERROR);
-      alert("Claude APIキーが未設定です。設定画面で登録してください。");
+      alert("Gemini APIキーが未設定です。設定画面で登録してください。");
       openSettings();
       return;
     }
@@ -611,7 +623,7 @@
     var task = { cancelled: false };
     currentTask = task;
 
-    callClaude(apiKey, settings.claudeModel, turns, settings.systemInstruction).then(function (reply) {
+    callGemini(apiKey, settings.geminiModel, turns, settings.systemInstruction).then(function (reply) {
       if (task.cancelled) return;
       conv.messages.push({ role: "assistant", content: reply, createdAt: Date.now() });
       touchConversation(conv);
@@ -684,32 +696,32 @@
 
   // ---------- 設定画面 ----------
   function openSettings() {
-    el.claudeKeyInput.value = "";
-    var existing = getClaudeKey();
-    el.claudeKeyHint.textContent = existing ? "設定済み（" + maskKey(existing) + "）" : "未設定";
-    el.claudeModelInput.value = settings.claudeModel;
+    el.geminiKeyInput.value = "";
+    var existing = getGeminiKey();
+    el.geminiKeyHint.textContent = existing ? "設定済み（" + maskKey(existing) + "）" : "未設定";
+    el.geminiModelInput.value = settings.geminiModel;
     el.systemInstructionInput.value = settings.systemInstruction;
     el.historyToggle.checked = settings.historyEnabled;
     el.settingsModal.classList.add("open");
   }
   function closeSettings() { el.settingsModal.classList.remove("open"); }
 
-  function testClaudeConnection() {
-    var key = el.claudeKeyInput.value.trim() || getClaudeKey();
-    if (!key) { alert("Claude APIキーを入力してください。"); return; }
-    var model = el.claudeModelInput.value.trim() || settings.claudeModel;
-    el.testClaudeBtn.disabled = true;
-    callClaude(key, model, [{ role: "user", content: "ping" }], null).then(function () {
-      alert("Claude APIに接続できました。");
+  function testGeminiConnection() {
+    var key = el.geminiKeyInput.value.trim() || getGeminiKey();
+    if (!key) { alert("Gemini APIキーを入力してください。"); return; }
+    var model = el.geminiModelInput.value.trim() || settings.geminiModel;
+    el.testGeminiBtn.disabled = true;
+    callGemini(key, model, [{ role: "user", content: "ping" }], null).then(function () {
+      alert("Gemini APIに接続できました。");
     }).catch(function (err) {
       alert(err.message || "接続に失敗しました。");
-    }).finally(function () { el.testClaudeBtn.disabled = false; });
+    }).finally(function () { el.testGeminiBtn.disabled = false; });
   }
 
   function saveSettingsFromForm() {
-    var typedKey = el.claudeKeyInput.value.trim();
-    if (typedKey) setClaudeKey(typedKey);
-    settings.claudeModel = el.claudeModelInput.value.trim() || defaultSettings.claudeModel;
+    var typedKey = el.geminiKeyInput.value.trim();
+    if (typedKey) setGeminiKey(typedKey);
+    settings.geminiModel = el.geminiModelInput.value.trim() || defaultSettings.geminiModel;
     settings.systemInstruction = el.systemInstructionInput.value;
     settings.historyEnabled = el.historyToggle.checked;
     saveSettings(settings);
@@ -741,7 +753,7 @@
   el.sidebarSettingsBtn.addEventListener("click", function () { openSettings(); closeSidebar(); });
   el.openSettingsBtn.addEventListener("click", openSettings);
   el.closeSettingsBtn.addEventListener("click", closeSettings);
-  el.testClaudeBtn.addEventListener("click", testClaudeConnection);
+  el.testGeminiBtn.addEventListener("click", testGeminiConnection);
   el.saveSettingsBtn.addEventListener("click", saveSettingsFromForm);
   el.sendBtn.addEventListener("click", sendMessage);
   el.cancelBtn.addEventListener("click", cancelCurrent);
@@ -752,9 +764,9 @@
   setupSpeechRecognition();
   updateStatusForKeyState();
   refreshAll();
-  if (!getClaudeKey()) {
+  if (!getGeminiKey()) {
     setTimeout(function () {
-      alert("利用を開始するには、Claude APIキーの登録が必要です。設定画面で登録してください。");
+      alert("利用を開始するには、Gemini APIキーの登録が必要です。設定画面で登録してください。");
       openSettings();
     }, 200);
   }
