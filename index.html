@@ -129,6 +129,75 @@
     opacity: 0.85;
     pointer-events: none;
   }
+  .hud-corner {
+    position: absolute;
+    top: 10px;
+    left: 14px;
+    font-family: "Rajdhani", sans-serif;
+    font-size: 10.5px;
+    line-height: 1.6;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    opacity: 0.75;
+    text-shadow: 0 0 6px rgba(85, 226, 255, 0.4);
+    pointer-events: none;
+    white-space: pre;
+  }
+  #hud-radar {
+    position: absolute;
+    top: 10px;
+    right: 14px;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--border-strong);
+    background: radial-gradient(circle, rgba(85,226,255,0.06) 0%, transparent 70%);
+    overflow: hidden;
+    pointer-events: none;
+  }
+  #hud-radar::before, #hud-radar::after {
+    content: "";
+    position: absolute;
+    border: 1px solid rgba(85, 226, 255, 0.18);
+    border-radius: 50%;
+  }
+  #hud-radar::before { inset: 6px; }
+  #hud-radar::after { inset: 12px; }
+  #hud-radar-sweep {
+    position: absolute;
+    inset: 0;
+    background: conic-gradient(from 0deg, rgba(85,226,255,0.55) 0deg, rgba(85,226,255,0) 55deg, transparent 360deg);
+    animation: radar-spin 2.6s linear infinite;
+  }
+  @keyframes radar-spin { to { transform: rotate(360deg); } }
+
+  #hud-eq {
+    position: absolute;
+    bottom: 26px;
+    left: 0; right: 0;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 4px;
+    height: 16px;
+    pointer-events: none;
+  }
+  #hud-eq span {
+    width: 3px;
+    height: 4px;
+    background: var(--accent);
+    border-radius: 2px;
+    opacity: 0.55;
+    box-shadow: 0 0 6px rgba(85, 226, 255, 0.5);
+    animation: eq-idle 2.4s ease-in-out infinite;
+  }
+  #hud-eq span:nth-child(1) { animation-delay: -1.8s; }
+  #hud-eq span:nth-child(2) { animation-delay: -1.2s; }
+  #hud-eq span:nth-child(3) { animation-delay: -0.6s; }
+  #hud-eq span:nth-child(4) { animation-delay: -1.5s; }
+  #hud-eq span:nth-child(5) { animation-delay: -0.3s; }
+  @keyframes eq-idle { 0%, 100% { height: 3px; } 50% { height: 10px; } }
+  #hud-eq.active span { animation-name: eq-active; animation-duration: 0.6s; }
+  @keyframes eq-active { 0%, 100% { height: 4px; } 50% { height: 16px; } }
 
   #warning-banner {
     background: var(--warning-bg);
@@ -405,7 +474,10 @@
   </header>
 
   <div id="core-wrap">
+    <div id="hud-tl" class="hud-corner hud-label"></div>
+    <div id="hud-radar" aria-hidden="true"><div id="hud-radar-sweep"></div></div>
     <canvas id="core-sphere" width="280" height="220"></canvas>
+    <div id="hud-eq"><span></span><span></span><span></span><span></span><span></span></div>
     <div id="core-caption" class="hud-label">STANDBY</div>
   </div>
 
@@ -722,6 +794,8 @@
     el.cancelBtn.style.display = busy ? "block" : "none";
     updateInputEnabled();
     if (window.__core && window.__core.setMood) window.__core.setMood(s);
+    var eqEl = document.getElementById("hud-eq");
+    if (eqEl) eqEl.classList.toggle("active", s === STATUS.RECORDING || s === STATUS.SPEAKING);
   }
   function updateStatusForKeyState() {
     var current = el.statusText.textContent;
@@ -830,6 +904,18 @@
   function renderHeader() {
     var conv = findConversation(currentConversationId);
     el.title.textContent = conv ? conv.title : "会話を選択してください";
+    updateHud(conv);
+  }
+
+  function updateHud(conv) {
+    var hudEl = document.getElementById("hud-tl");
+    if (!hudEl) return;
+    var lines = [
+      "MODEL  " + (settings.geminiModel || "-"),
+      "MSGS   " + (conv ? conv.messages.length : 0),
+      "HIST   " + (settings.historyEnabled ? "ON" : "OFF")
+    ];
+    hudEl.textContent = lines.join("\n");
   }
 
   function refreshAll() {
