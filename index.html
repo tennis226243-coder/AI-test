@@ -199,6 +199,25 @@
   #hud-eq.active span { animation-name: eq-active; animation-duration: 0.6s; }
   @keyframes eq-active { 0%, 100% { height: 4px; } 50% { height: 16px; } }
 
+  #hud-bars {
+    position: absolute;
+    top: 62px;
+    left: 14px;
+    display: flex;
+    align-items: flex-end;
+    gap: 2px;
+    height: 18px;
+    pointer-events: none;
+  }
+  #hud-bars span {
+    width: 3px;
+    border-radius: 1px;
+    background: var(--accent);
+    opacity: 0.5;
+  }
+  #hud-bars span.u { background: var(--accent); opacity: 0.65; }
+  #hud-bars span.a { background: #ffffff; opacity: 0.35; }
+
   #warning-banner {
     background: var(--warning-bg);
     color: var(--warning-text);
@@ -475,6 +494,7 @@
 
   <div id="core-wrap">
     <div id="hud-tl" class="hud-corner hud-label"></div>
+    <div id="hud-bars"></div>
     <div id="hud-radar" aria-hidden="true"><div id="hud-radar-sweep"></div></div>
     <canvas id="core-sphere" width="280" height="220"></canvas>
     <div id="hud-eq"><span></span><span></span><span></span><span></span><span></span></div>
@@ -907,15 +927,35 @@
     updateHud(conv);
   }
 
+  var lastLatencyMs = null;
+
   function updateHud(conv) {
     var hudEl = document.getElementById("hud-tl");
     if (!hudEl) return;
+    var sessCount = persistedConversations.length + sessionConversations.length;
     var lines = [
       "MODEL  " + (settings.geminiModel || "-"),
+      "SESS   " + sessCount,
       "MSGS   " + (conv ? conv.messages.length : 0),
-      "HIST   " + (settings.historyEnabled ? "ON" : "OFF")
+      "LAST   " + (lastLatencyMs != null ? (lastLatencyMs / 1000).toFixed(1) + "s" : "--")
     ];
     hudEl.textContent = lines.join("\n");
+    renderHudBars(conv);
+  }
+
+  function renderHudBars(conv) {
+    var barsEl = document.getElementById("hud-bars");
+    if (!barsEl) return;
+    barsEl.innerHTML = "";
+    var recent = conv ? conv.messages.slice(-8) : [];
+    var maxLen = recent.reduce(function (m, msg) { return Math.max(m, msg.content.length); }, 1);
+    recent.forEach(function (msg) {
+      var bar = document.createElement("span");
+      var h = Math.max(2, Math.round((msg.content.length / maxLen) * 18));
+      bar.style.height = h + "px";
+      bar.className = msg.role === "user" ? "u" : "a";
+      barsEl.appendChild(bar);
+    });
   }
 
   function refreshAll() {
@@ -1048,9 +1088,11 @@
     var turns = trimHistory(conv.messages.map(function (m) { return { role: m.role, content: m.content }; }));
     var task = { cancelled: false };
     currentTask = task;
+    var requestStartedAt = Date.now();
 
     callGemini(apiKey, settings.geminiModel, turns, settings.systemInstruction).then(function (reply) {
       if (task.cancelled) return;
+      lastLatencyMs = Date.now() - requestStartedAt;
       var assistantMsg = { role: "assistant", content: reply, createdAt: Date.now() };
       conv.messages.push(assistantMsg);
       touchConversation(conv);
@@ -1193,6 +1235,17 @@
   // ---------- 初期化 ----------
   setupSpeechRecognition();
   updateStatusForKeyState();
+  // 起動のたびに「新しい会話」をタップしなくて済むよう、既存の会話があれば直近のものを自動で開き、
+  // なければ自動でひとつ作成しておく。
+  (function autoStartConversation() {
+    var all = sortedAllConversations();
+    if (all.length > 0) {
+      currentConversationId = all[0].id;
+    } else {
+      createConversation();
+      return; // createConversation内でrefreshAllまで実行済み
+    }
+  })();
   refreshAll();
   if (!getGeminiKey()) {
     setTimeout(function () {
