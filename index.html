@@ -4,28 +4,51 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>個人用AIエージェント（テスト版）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+
   :root {
-    --bg: #f7f6f3;
-    --panel: #ffffff;
-    --border: #e2e0da;
-    --text: #22262b;
-    --text-dim: #6b7178;
-    --accent: #2f5d50;
-    --accent-contrast: #ffffff;
-    --user-bubble: #eef2ee;
-    --ai-bubble: #ffffff;
-    --error: #a3372c;
-    --warning-bg: #fbe9c8;
-    --warning-text: #6b4a13;
+    --bg: #05070d;
+    --bg-2: #090d1a;
+    --panel: rgba(14, 20, 36, 0.68);
+    --panel-solid: #0b0f1c;
+    --border: rgba(120, 210, 255, 0.16);
+    --border-strong: rgba(120, 210, 255, 0.4);
+    --text: #dceeff;
+    --text-dim: #7691ab;
+    --accent: #55e2ff;
+    --accent-soft: rgba(85, 226, 255, 0.14);
+    --accent-contrast: #03131a;
+    --amber: #ffb84d;
+    --amber-soft: rgba(255, 184, 77, 0.14);
+    --user-bubble: rgba(85, 226, 255, 0.08);
+    --user-border: rgba(85, 226, 255, 0.32);
+    --ai-bubble: rgba(255, 255, 255, 0.035);
+    --ai-border: rgba(255, 255, 255, 0.10);
+    --error: #ff5d72;
+    --warning-bg: rgba(255, 184, 77, 0.10);
+    --warning-text: #ffd39a;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   html, body {
     height: 100%;
     margin: 0;
-    background: var(--bg);
+    background: radial-gradient(ellipse 120% 60% at 50% -10%, #0d1830 0%, var(--bg) 55%), var(--bg);
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+  }
+  body {
+    background-image:
+      radial-gradient(ellipse 120% 60% at 50% -10%, #0d1830 0%, var(--bg) 55%),
+      repeating-linear-gradient(0deg, rgba(120,210,255,0.025) 0px, rgba(120,210,255,0.025) 1px, transparent 1px, transparent 42px),
+      repeating-linear-gradient(90deg, rgba(120,210,255,0.025) 0px, rgba(120,210,255,0.025) 1px, transparent 1px, transparent 42px);
+  }
+  .hud-label {
+    font-family: "Rajdhani", "Inter", sans-serif;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
   #app {
     display: flex;
@@ -39,40 +62,89 @@
     align-items: center;
     gap: 10px;
     padding: 12px 14px;
+    background: rgba(6, 9, 18, 0.72);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--border);
-    background: var(--panel);
+    position: relative;
+    z-index: 5;
   }
   header h1 {
-    font-size: 15px;
+    font-family: "Rajdhani", sans-serif;
     font-weight: 600;
+    letter-spacing: 0.04em;
+    font-size: 16px;
     margin: 0;
     flex: 1;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    color: var(--text);
+    text-shadow: 0 0 12px rgba(85, 226, 255, 0.35);
   }
   header button.icon {
-    border: none;
-    background: transparent;
-    font-size: 20px;
-    padding: 4px 8px;
-    color: var(--text);
+    border: 1px solid var(--border);
+    background: rgba(85, 226, 255, 0.05);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    font-size: 17px;
+    color: var(--accent);
     cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: box-shadow 0.2s, border-color 0.2s;
   }
+  header button.icon:active {
+    box-shadow: 0 0 14px rgba(85, 226, 255, 0.55);
+    border-color: var(--border-strong);
+  }
+
+  /* --- コア（パーティクルスフィア） --- */
+  #core-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 0 4px;
+    background: rgba(6, 9, 18, 0.4);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  #core-sphere { display: block; }
+  #core-caption {
+    position: absolute;
+    bottom: 6px;
+    left: 0; right: 0;
+    text-align: center;
+    font-family: "Rajdhani", sans-serif;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    color: var(--accent);
+    text-shadow: 0 0 8px rgba(85, 226, 255, 0.6);
+    opacity: 0.85;
+    pointer-events: none;
+  }
+
   #warning-banner {
     background: var(--warning-bg);
     color: var(--warning-text);
-    font-size: 12.5px;
+    font-size: 12px;
     padding: 8px 14px;
     line-height: 1.5;
+    border-bottom: 1px solid rgba(255, 184, 77, 0.2);
   }
   #status-line {
+    font-family: "Rajdhani", sans-serif;
+    letter-spacing: 0.1em;
     font-size: 12px;
     color: var(--text-dim);
-    padding: 4px 14px;
-    background: var(--panel);
+    padding: 5px 14px;
+    background: rgba(6, 9, 18, 0.5);
     border-bottom: 1px solid var(--border);
   }
+  #status-text { color: var(--accent); font-weight: 600; }
   #messages {
     flex: 1;
     overflow-y: auto;
@@ -86,15 +158,34 @@
   .bubble {
     max-width: 82%;
     padding: 10px 13px;
-    border-radius: 14px;
+    border-radius: 12px;
     font-size: 15px;
-    line-height: 1.5;
+    line-height: 1.55;
     white-space: pre-wrap;
     word-break: break-word;
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
   }
-  .bubble .role { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 3px; }
-  .bubble.user { background: var(--user-bubble); border-bottom-right-radius: 4px; }
-  .bubble.assistant { background: var(--ai-bubble); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  .bubble .role {
+    display: block;
+    font-family: "Rajdhani", sans-serif;
+    letter-spacing: 0.12em;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    color: var(--text-dim);
+    margin-bottom: 4px;
+  }
+  .bubble.user {
+    background: var(--user-bubble);
+    border: 1px solid var(--user-border);
+    border-bottom-right-radius: 3px;
+    box-shadow: 0 0 18px rgba(85, 226, 255, 0.06);
+  }
+  .bubble.assistant {
+    background: var(--ai-bubble);
+    border: 1px solid var(--ai-border);
+    border-bottom-left-radius: 3px;
+  }
   #empty-state {
     margin: auto;
     text-align: center;
@@ -104,13 +195,17 @@
   }
   #input-area {
     border-top: 1px solid var(--border);
-    background: var(--panel);
+    background: rgba(6, 9, 18, 0.72);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
     padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
   }
   #input-row { display: flex; gap: 8px; align-items: flex-end; }
   #text-input {
     flex: 1;
     resize: none;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text);
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 9px 11px;
@@ -118,35 +213,61 @@
     max-height: 110px;
     min-height: 40px;
     font-family: inherit;
+    transition: border-color 0.2s, box-shadow 0.2s;
   }
+  #text-input:focus {
+    outline: none;
+    border-color: var(--border-strong);
+    box-shadow: 0 0 0 3px rgba(85, 226, 255, 0.12);
+  }
+  #text-input::placeholder { color: var(--text-dim); }
+  #text-input:disabled { opacity: 0.4; }
   .round-btn {
-    width: 40px; height: 40px;
+    width: 42px; height: 42px;
     border-radius: 50%;
-    border: none;
+    border: 1px solid var(--border);
     display: flex; align-items: center; justify-content: center;
     font-size: 18px;
     cursor: pointer;
     flex-shrink: 0;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text);
+    transition: box-shadow 0.2s, border-color 0.2s, background 0.2s;
   }
-  #mic-btn { background: #eef0ef; color: var(--text); }
-  #mic-btn.recording { background: var(--error); color: #fff; }
-  #send-btn { background: var(--accent); color: var(--accent-contrast); }
-  #send-btn:disabled, #mic-btn:disabled { opacity: 0.4; }
+  #mic-btn { color: var(--accent); }
+  #mic-btn.recording {
+    background: var(--amber-soft);
+    border-color: var(--amber);
+    color: var(--amber);
+    animation: mic-pulse 1.1s ease-in-out infinite;
+  }
+  @keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 184, 77, 0.5); }
+    50% { box-shadow: 0 0 0 9px rgba(255, 184, 77, 0); }
+  }
+  #send-btn {
+    background: var(--accent-soft);
+    border-color: var(--border-strong);
+    color: var(--accent);
+  }
+  #send-btn:active:not(:disabled) { box-shadow: 0 0 16px rgba(85, 226, 255, 0.5); }
+  #send-btn:disabled, #mic-btn:disabled { opacity: 0.35; }
   #cancel-btn {
     margin-top: 8px;
     width: 100%;
-    background: none;
-    border: 1px solid var(--border);
+    background: rgba(255, 93, 114, 0.08);
+    border: 1px solid rgba(255, 93, 114, 0.3);
     border-radius: 8px;
     padding: 6px;
     font-size: 13px;
-    color: var(--text-dim);
+    color: #ffb0ba;
   }
 
   /* --- サイドバー(会話一覧) オーバーレイ --- */
   #sidebar-overlay {
     position: fixed; inset: 0;
-    background: rgba(0,0,0,0.35);
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(2px);
     display: none;
     z-index: 20;
   }
@@ -154,7 +275,8 @@
   #sidebar {
     position: fixed; top: 0; bottom: 0; left: 0;
     width: 82%; max-width: 320px;
-    background: var(--panel);
+    background: var(--panel-solid);
+    border-right: 1px solid var(--border);
     transform: translateX(-100%);
     transition: transform 0.2s ease;
     z-index: 21;
@@ -162,16 +284,19 @@
     padding-top: env(safe-area-inset-top, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
-  #sidebar.open { transform: translateX(0); }
+  #sidebar.open { transform: translateX(0); box-shadow: 0 0 40px rgba(85, 226, 255, 0.08); }
   #sidebar .sidebar-header { padding: 14px; border-bottom: 1px solid var(--border); }
   #new-conv-btn {
     width: 100%;
     padding: 10px;
     border-radius: 8px;
-    border: none;
-    background: var(--accent);
-    color: #fff;
-    font-size: 14px;
+    border: 1px solid var(--border-strong);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-family: "Rajdhani", sans-serif;
+    letter-spacing: 0.06em;
+    font-size: 15px;
+    font-weight: 600;
     cursor: pointer;
   }
   #conv-list { flex: 1; overflow-y: auto; }
@@ -180,17 +305,19 @@
     padding: 12px 14px;
     border-bottom: 1px solid var(--border);
     font-size: 14px;
+    color: var(--text);
     cursor: pointer;
   }
-  .conv-item.active { background: var(--user-bubble); }
+  .conv-item.active { background: var(--accent-soft); box-shadow: inset 3px 0 0 var(--accent); }
   .conv-item .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .conv-item .del-btn { color: var(--error); background: none; border: none; font-size: 13px; padding: 4px; }
+  .conv-item .del-btn { color: #ff8a96; background: none; border: none; font-size: 13px; padding: 4px; }
   #sidebar-settings-btn {
     margin: 12px 14px calc(14px + env(safe-area-inset-bottom, 0px));
     padding: 10px;
     border-radius: 8px;
     border: 1px solid var(--border);
-    background: none;
+    background: transparent;
+    color: var(--text);
     font-size: 14px;
   }
 
@@ -206,16 +333,32 @@
   }
   #settings-modal.open { display: flex; }
   #settings-modal header { justify-content: space-between; }
+  #settings-modal header h1 { flex: unset; }
   #settings-body { flex: 1; overflow-y: auto; padding: 16px; }
   .field { margin-bottom: 18px; }
-  .field label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 6px; }
+  .field label {
+    display: block;
+    font-family: "Rajdhani", sans-serif;
+    letter-spacing: 0.08em;
+    font-size: 12.5px;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+  }
   .field input[type=text], .field input[type=password], .field textarea {
     width: 100%;
     padding: 10px;
+    background: rgba(255, 255, 255, 0.03);
+    color: var(--text);
     border: 1px solid var(--border);
     border-radius: 8px;
     font-size: 15px;
     font-family: inherit;
+  }
+  .field input:focus, .field textarea:focus {
+    outline: none;
+    border-color: var(--border-strong);
+    box-shadow: 0 0 0 3px rgba(85, 226, 255, 0.12);
   }
   .field textarea { resize: vertical; min-height: 70px; }
   .field .hint { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
@@ -223,8 +366,9 @@
     margin-top: 6px;
     padding: 7px 12px;
     border-radius: 6px;
-    border: 1px solid var(--border);
-    background: var(--panel);
+    border: 1px solid var(--border-strong);
+    background: var(--accent-soft);
+    color: var(--accent);
     font-size: 13px;
   }
   .toggle-row { display: flex; align-items: center; justify-content: space-between; }
@@ -232,13 +376,17 @@
     width: 100%;
     padding: 12px;
     border-radius: 8px;
-    border: none;
-    background: var(--accent);
-    color: #fff;
-    font-size: 15px;
+    border: 1px solid var(--border-strong);
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-family: "Rajdhani", sans-serif;
+    letter-spacing: 0.08em;
+    font-size: 16px;
+    font-weight: 600;
     margin-top: 8px;
   }
   #speech-support-note { font-size: 12px; color: var(--text-dim); padding: 0 16px 16px; }
+
 </style>
 </head>
 <body>
@@ -248,6 +396,11 @@
     <h1 id="chat-title">会話を選択してください</h1>
     <button class="icon" id="open-settings-btn" aria-label="設定">⚙︎</button>
   </header>
+
+  <div id="core-wrap">
+    <canvas id="core-sphere" width="220" height="140"></canvas>
+    <div id="core-caption" class="hud-label">STANDBY</div>
+  </div>
 
   <div id="warning-banner">
     テスト版です。APIキーはこの端末のブラウザ内（localStorage）に保存されます。Keychain等の安全な保管ではないため、共有端末では使用しないでください。
@@ -308,6 +461,123 @@
 </div>
 
 <script>
+// ---------- コア: パーティクルスフィア（状態に応じて色・速度が変化するJARVIS風ビジュアル） ----------
+(function () {
+  "use strict";
+  var canvas = document.getElementById("core-sphere");
+  if (!canvas) return;
+  var ctx = canvas.getContext("2d");
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var cssW = canvas.width, cssH = canvas.height;
+  canvas.style.width = cssW + "px";
+  canvas.style.height = cssH + "px";
+  canvas.width = cssW * dpr;
+  canvas.height = cssH * dpr;
+  ctx.scale(dpr, dpr);
+
+  var cx = cssW / 2, cy = cssH / 2;
+  var radius = Math.min(cssW, cssH) / 2 - 14;
+
+  // フィボナッチ球面上に点を配置
+  var COUNT = 260;
+  var points = [];
+  (function buildSphere() {
+    var golden = Math.PI * (3 - Math.sqrt(5));
+    for (var i = 0; i < COUNT; i++) {
+      var y = 1 - (i / (COUNT - 1)) * 2;
+      var r = Math.sqrt(1 - y * y);
+      var theta = golden * i;
+      points.push({ x: Math.cos(theta) * r, y: y, z: Math.sin(theta) * r });
+    }
+  })();
+
+  // 状態ごとの見た目パラメータ
+  var MOODS = {
+    "未設定":       { color: [120, 140, 160], speed: 0.15, jitter: 0.0, pulse: 0.02, caption: "STANDBY" },
+    "待機中":       { color: [85, 226, 255],  speed: 0.35, jitter: 0.01, pulse: 0.05, caption: "READY" },
+    "録音中(音声認識)": { color: [255, 184, 77], speed: 0.9,  jitter: 0.05, pulse: 0.18, caption: "LISTENING" },
+    "回答生成中":    { color: [140, 255, 235], speed: 1.6,  jitter: 0.03, pulse: 0.12, caption: "THINKING" },
+    "完了":         { color: [110, 240, 180], speed: 0.4,  jitter: 0.0, pulse: 0.06, caption: "ONLINE" },
+    "エラー":       { color: [255, 93, 114],  speed: 0.6,  jitter: 0.06, pulse: 0.2, caption: "ERROR" }
+  };
+  var current = MOODS["未設定"];
+  var target = MOODS["未設定"];
+  var mix = { color: current.color.slice(), speed: current.speed, jitter: current.jitter, pulse: current.pulse };
+  var captionEl = document.getElementById("core-caption");
+
+  function setMood(statusLabel) {
+    target = MOODS[statusLabel] || MOODS["未設定"];
+    if (captionEl) captionEl.textContent = target.caption;
+  }
+  window.__core = { setMood: setMood };
+
+  var angleY = 0, angleX = 0.4, t = 0;
+
+  function lerp(a, b, k) { return a + (b - a) * k; }
+
+  function frame() {
+    t += 0.016;
+    // 目標ムードへ滑らかに近づける
+    mix.speed = lerp(mix.speed, target.speed, 0.04);
+    mix.jitter = lerp(mix.jitter, target.jitter, 0.04);
+    mix.pulse = lerp(mix.pulse, target.pulse, 0.04);
+    for (var c = 0; c < 3; c++) mix.color[c] = lerp(mix.color[c], target.color[c], 0.04);
+
+    angleY += 0.006 * mix.speed * 10 * 0.1 + 0.003;
+    angleX = 0.4 + Math.sin(t * 0.3) * 0.08;
+
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    var col = mix.color.map(function (v) { return Math.round(v); });
+    var breathe = 1 + Math.sin(t * 2.2) * mix.pulse;
+
+    // 中心グロー
+    var glowR = radius * 1.15 * breathe;
+    var grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
+    grad.addColorStop(0, "rgba(" + col.join(",") + ",0.20)");
+    grad.addColorStop(1, "rgba(" + col.join(",") + ",0)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, glowR, 0, Math.PI * 2);
+    ctx.fill();
+
+    var cosY = Math.cos(angleY), sinY = Math.sin(angleY);
+    var cosX = Math.cos(angleX), sinX = Math.sin(angleX);
+
+    var projected = [];
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      var jitter = mix.jitter * Math.sin(t * 3 + i);
+      var px = p.x * (1 + jitter), py = p.y * (1 + jitter), pz = p.z * (1 + jitter);
+
+      // Y軸回転
+      var x1 = px * cosY - pz * sinY;
+      var z1 = px * sinY + pz * cosY;
+      // X軸回転
+      var y2 = py * cosX - z1 * sinX;
+      var z2 = py * sinX + z1 * cosX;
+
+      var scale = breathe * radius;
+      var perspective = 1 / (2 - z2);
+      var sx = cx + x1 * scale * perspective;
+      var sy = cy + y2 * scale * perspective;
+      var depthAlpha = (z2 + 1) / 2;
+      projected.push({ x: sx, y: sy, a: 0.15 + depthAlpha * 0.85, r: 0.6 + depthAlpha * 1.6 });
+    }
+
+    for (var j = 0; j < projected.length; j++) {
+      var q = projected[j];
+      ctx.beginPath();
+      ctx.fillStyle = "rgba(" + col.join(",") + "," + q.a.toFixed(2) + ")";
+      ctx.arc(q.x, q.y, q.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+
 (function () {
   "use strict";
 
@@ -420,6 +690,7 @@
     var busy = (s === STATUS.RECORDING || s === STATUS.GENERATING);
     el.cancelBtn.style.display = busy ? "block" : "none";
     updateInputEnabled();
+    if (window.__core && window.__core.setMood) window.__core.setMood(s);
   }
   function updateStatusForKeyState() {
     var current = el.statusText.textContent;
