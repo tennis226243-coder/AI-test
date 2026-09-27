@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>個人用AIエージェント（テスト版）</title>
+<style>
+  :root {
+    --bg: #f7f6f3;
+    --panel: #ffffff;
+    --border: #e2e0da;
+    --text: #22262b;
+    --text-dim: #6b7178;
+    --accent: #2f5d50;
+    --accent-contrast: #ffffff;
+    --user-bubble: #eef2ee;
+    --ai-bubble: #ffffff;
+    --error: #a3372c;
+    --warning-bg: #fbe9c8;
+    --warning-text: #6b4a13;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+  }
+  #app {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--panel);
+  }
+  header h1 {
+    font-size: 15px;
+    font-weight: 600;
+    margin: 0;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  header button.icon {
+    border: none;
+    background: transparent;
+    font-size: 20px;
+    padding: 4px 8px;
+    color: var(--text);
+    cursor: pointer;
+  }
+  #warning-banner {
+    background: var(--warning-bg);
+    color: var(--warning-text);
+    font-size: 12.5px;
+    padding: 8px 14px;
+    line-height: 1.5;
+  }
+  #status-line {
+    font-size: 12px;
+    color: var(--text-dim);
+    padding: 4px 14px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+  }
+  #messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .bubble-row { display: flex; }
+  .bubble-row.user { justify-content: flex-end; }
+  .bubble {
+    max-width: 82%;
+    padding: 10px 13px;
+    border-radius: 14px;
+    font-size: 15px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .bubble .role { display: block; font-size: 11px; color: var(--text-dim); margin-bottom: 3px; }
+  .bubble.user { background: var(--user-bubble); border-bottom-right-radius: 4px; }
+  .bubble.assistant { background: var(--ai-bubble); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+  #empty-state {
+    margin: auto;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 14px;
+    padding: 24px;
+  }
+  #input-area {
+    border-top: 1px solid var(--border);
+    background: var(--panel);
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px));
+  }
+  #input-row { display: flex; gap: 8px; align-items: flex-end; }
+  #text-input {
+    flex: 1;
+    resize: none;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 9px 11px;
+    font-size: 15px;
+    max-height: 110px;
+    min-height: 40px;
+    font-family: inherit;
+  }
+  .round-btn {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    border: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  #mic-btn { background: #eef0ef; color: var(--text); }
+  #mic-btn.recording { background: var(--error); color: #fff; }
+  #send-btn { background: var(--accent); color: var(--accent-contrast); }
+  #send-btn:disabled, #mic-btn:disabled { opacity: 0.4; }
+  #cancel-btn {
+    margin-top: 8px;
+    width: 100%;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+
+  /* --- サイドバー(会話一覧) オーバーレイ --- */
+  #sidebar-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.35);
+    display: none;
+    z-index: 20;
+  }
+  #sidebar-overlay.open { display: block; }
+  #sidebar {
+    position: fixed; top: 0; bottom: 0; left: 0;
+    width: 82%; max-width: 320px;
+    background: var(--panel);
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    z-index: 21;
+    display: flex; flex-direction: column;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  #sidebar.open { transform: translateX(0); }
+  #sidebar .sidebar-header { padding: 14px; border-bottom: 1px solid var(--border); }
+  #new-conv-btn {
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #conv-list { flex: 1; overflow-y: auto; }
+  .conv-item {
+    display: flex; align-items: center; gap: 6px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .conv-item.active { background: var(--user-bubble); }
+  .conv-item .title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conv-item .del-btn { color: var(--error); background: none; border: none; font-size: 13px; padding: 4px; }
+  #sidebar-settings-btn {
+    margin: 12px 14px calc(14px + env(safe-area-inset-bottom, 0px));
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: none;
+    font-size: 14px;
+  }
+
+  /* --- 設定モーダル --- */
+  #settings-modal {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    z-index: 30;
+    display: none;
+    flex-direction: column;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  #settings-modal.open { display: flex; }
+  #settings-modal header { justify-content: space-between; }
+  #settings-body { flex: 1; overflow-y: auto; padding: 16px; }
+  .field { margin-bottom: 18px; }
+  .field label { display: block; font-size: 13px; color: var(--text-dim); margin-bottom: 6px; }
+  .field input[type=text], .field input[type=password], .field textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 15px;
+    font-family: inherit;
+  }
+  .field textarea { resize: vertical; min-height: 70px; }
+  .field .hint { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
+  .test-btn {
+    margin-top: 6px;
+    padding: 7px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    font-size: 13px;
+  }
+  .toggle-row { display: flex; align-items: center; justify-content: space-between; }
+  #save-settings-btn {
+    width: 100%;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    background: var(--accent);
+    color: #fff;
+    font-size: 15px;
+    margin-top: 8px;
+  }
+  #speech-support-note { font-size: 12px; color: var(--text-dim); padding: 0 16px 16px; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <button class="icon" id="open-sidebar-btn" aria-label="会話一覧">☰</button>
+    <h1 id="chat-title">会話を選択してください</h1>
+    <button class="icon" id="open-settings-btn" aria-label="設定">⚙︎</button>
+  </header>
+
+  <div id="warning-banner">
+    テスト版です。APIキーはこの端末のブラウザ内（localStorage）に保存されます。Keychain等の安全な保管ではないため、共有端末では使用しないでください。
+  </div>
+
+  <div id="status-line">状態: <span id="status-text">未設定</span></div>
+
+  <div id="messages">
+    <div id="empty-state">左上のメニューから「新しい会話」を開始してください。</div>
+  </div>
+
+  <div id="input-area">
+    <div id="input-row">
+      <textarea id="text-input" placeholder="メッセージを入力" rows="1" disabled></textarea>
+      <button class="round-btn" id="mic-btn" disabled aria-label="録音">🎤</button>
+      <button class="round-btn" id="send-btn" disabled aria-label="送信">➤</button>
+    </div>
+    <button id="cancel-btn" style="display:none;">キャンセル</button>
+  </div>
+</div>
+
+<div id="sidebar-overlay"></div>
+<div id="sidebar">
+  <div class="sidebar-header">
+    <button id="new-conv-btn">＋ 新しい会話</button>
+  </div>
+  <div id="conv-list"></div>
+  <button id="sidebar-settings-btn">設定を開く</button>
+</div>
+
+<div id="settings-modal">
+  <header>
+    <h1>設定</h1>
+    <button class="icon" id="close-settings-btn" aria-label="閉じる">✕</button>
+  </header>
+  <div id="settings-body">
+    <div class="field">
+      <label for="claude-key-input">Claude APIキー</label>
+      <input type="password" id="claude-key-input" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="hint" id="claude-key-hint"></div>
+      <button class="test-btn" id="test-claude-btn">接続確認</button>
+    </div>
+    <div class="field">
+      <label for="claude-model-input">Claudeモデル名</label>
+      <input type="text" id="claude-model-input">
+    </div>
+    <div class="field">
+      <label for="system-instruction-input">システム指示</label>
+      <textarea id="system-instruction-input" placeholder="例: 回答は簡潔な日本語の敬語で。"></textarea>
+    </div>
+    <div class="field toggle-row">
+      <label for="history-toggle" style="margin:0;">会話履歴をこの端末に保存する</label>
+      <input type="checkbox" id="history-toggle">
+    </div>
+    <button id="save-settings-btn">保存</button>
+  </div>
+  <div id="speech-support-note"></div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ---------- ストレージ ----------
+  var STORAGE_SETTINGS = "paia_settings";
+  var STORAGE_CLAUDE_KEY = "paia_claude_key";
+  var STORAGE_CONVERSATIONS = "paia_conversations";
+
+  var defaultSettings = {
+    claudeModel: "claude-sonnet-4-5",
+    systemInstruction: "",
+    historyEnabled: true
+  };
+
+  function loadSettings() {
+    try {
+      var raw = localStorage.getItem(STORAGE_SETTINGS);
+      if (!raw) return Object.assign({}, defaultSettings);
+      var parsed = JSON.parse(raw);
+      return Object.assign({}, defaultSettings, parsed);
+    } catch (e) {
+      return Object.assign({}, defaultSettings);
+    }
+  }
+  function saveSettings(s) {
+    localStorage.setItem(STORAGE_SETTINGS, JSON.stringify(s));
+  }
+  function getClaudeKey() { return localStorage.getItem(STORAGE_CLAUDE_KEY) || ""; }
+  function setClaudeKey(v) { localStorage.setItem(STORAGE_CLAUDE_KEY, v); }
+  function maskKey(v) {
+    if (!v) return "";
+    if (v.length <= 4) return "*".repeat(v.length);
+    return "*".repeat(v.length - 4) + v.slice(-4);
+  }
+
+  function loadConversations() {
+    try {
+      var raw = localStorage.getItem(STORAGE_CONVERSATIONS);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  }
+  function persistConversations(list) {
+    localStorage.setItem(STORAGE_CONVERSATIONS, JSON.stringify(list));
+  }
+
+  // ---------- 状態 ----------
+  var settings = loadSettings();
+  var persistedConversations = loadConversations(); // 履歴保存オンで保存された会話
+  var sessionConversations = [];                    // 履歴保存オフ中に作成した、DBに保存しない会話（再読み込みで消える）
+  var currentConversationId = null;
+  var currentTask = null;      // {cancelled: bool}
+  var recognizing = false;
+  var recognition = null;
+
+  var STATUS = {
+    UNSET: "未設定", IDLE: "待機中", RECORDING: "録音中(音声認識)",
+    GENERATING: "回答生成中", DONE: "完了", ERROR: "エラー"
+  };
+
+  // ---------- DOM参照 ----------
+  var el = {
+    title: document.getElementById("chat-title"),
+    statusText: document.getElementById("status-text"),
+    messages: document.getElementById("messages"),
+    emptyState: document.getElementById("empty-state"),
+    input: document.getElementById("text-input"),
+    micBtn: document.getElementById("mic-btn"),
+    sendBtn: document.getElementById("send-btn"),
+    cancelBtn: document.getElementById("cancel-btn"),
+    openSidebarBtn: document.getElementById("open-sidebar-btn"),
+    sidebar: document.getElementById("sidebar"),
+    sidebarOverlay: document.getElementById("sidebar-overlay"),
+    newConvBtn: document.getElementById("new-conv-btn"),
+    convList: document.getElementById("conv-list"),
+    sidebarSettingsBtn: document.getElementById("sidebar-settings-btn"),
+    openSettingsBtn: document.getElementById("open-settings-btn"),
+    settingsModal: document.getElementById("settings-modal"),
+    closeSettingsBtn: document.getElementById("close-settings-btn"),
+    claudeKeyInput: document.getElementById("claude-key-input"),
+    claudeKeyHint: document.getElementById("claude-key-hint"),
+    testClaudeBtn: document.getElementById("test-claude-btn"),
+    claudeModelInput: document.getElementById("claude-model-input"),
+    systemInstructionInput: document.getElementById("system-instruction-input"),
+    historyToggle: document.getElementById("history-toggle"),
+    saveSettingsBtn: document.getElementById("save-settings-btn"),
+    speechNote: document.getElementById("speech-support-note")
+  };
+
+  // ---------- ヘルパー ----------
+  function findConversation(id) {
+    return persistedConversations.find(function (c) { return c.id === id; }) ||
+           sessionConversations.find(function (c) { return c.id === id; });
+  }
+  function isPersisted(conv) {
+    return persistedConversations.indexOf(conv) !== -1;
+  }
+  function makeTitle(text) {
+    var single = text.replace(/\s+/g, " ").trim();
+    if (!single) return null;
+    return single.length > 30 ? single.slice(0, 30) + "…" : single;
+  }
+  function sortedAllConversations() {
+    return persistedConversations.concat(sessionConversations)
+      .slice()
+      .sort(function (a, b) { return b.updatedAt - a.updatedAt; });
+  }
+
+  function setStatus(s) {
+    el.statusText.textContent = s;
+    var busy = (s === STATUS.RECORDING || s === STATUS.GENERATING);
+    el.cancelBtn.style.display = busy ? "block" : "none";
+    updateInputEnabled();
+  }
+  function updateStatusForKeyState() {
+    var current = el.statusText.textContent;
+    if (current === STATUS.RECORDING || current === STATUS.GENERATING) return;
+    setStatus(getClaudeKey() ? STATUS.IDLE : STATUS.UNSET);
+  }
+
+  function updateInputEnabled() {
+    var hasConv = currentConversationId !== null;
+    var busy = (el.statusText.textContent === STATUS.RECORDING || el.statusText.textContent === STATUS.GENERATING);
+    el.input.disabled = !hasConv;
+    el.sendBtn.disabled = !hasConv || busy || el.input.value.trim() === "";
+    el.micBtn.disabled = !hasConv || busy || !recognition;
+  }
+
+  // ---------- 描画 ----------
+  function renderSidebar() {
+    el.convList.innerHTML = "";
+    var all = sortedAllConversations();
+    all.forEach(function (c) {
+      var row = document.createElement("div");
+      row.className = "conv-item" + (c.id === currentConversationId ? " active" : "");
+      var titleSpan = document.createElement("span");
+      titleSpan.className = "title";
+      titleSpan.textContent = c.title + (isPersisted(c) ? "" : "（未保存）");
+      row.appendChild(titleSpan);
+      var delBtn = document.createElement("button");
+      delBtn.className = "del-btn";
+      delBtn.textContent = "削除";
+      delBtn.addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        deleteConversation(c.id);
+      });
+      row.appendChild(delBtn);
+      row.addEventListener("click", function () { selectConversation(c.id); closeSidebar(); });
+      el.convList.appendChild(row);
+    });
+  }
+
+  function renderMessages() {
+    var conv = findConversation(currentConversationId);
+    el.messages.innerHTML = "";
+    if (!conv || conv.messages.length === 0) {
+      var empty = document.createElement("div");
+      empty.id = "empty-state";
+      empty.textContent = conv ? "メッセージを送ってみましょう。" : "左上のメニューから「新しい会話」を開始してください。";
+      el.messages.appendChild(empty);
+      return;
+    }
+    conv.messages.forEach(function (m) {
+      var row = document.createElement("div");
+      row.className = "bubble-row " + m.role;
+      var bubble = document.createElement("div");
+      bubble.className = "bubble " + m.role;
+      var roleLabel = document.createElement("span");
+      roleLabel.className = "role";
+      roleLabel.textContent = m.role === "user" ? "あなた" : "AI";
+      bubble.appendChild(roleLabel);
+      var body = document.createElement("span");
+      body.textContent = m.content;
+      bubble.appendChild(body);
+      row.appendChild(bubble);
+      el.messages.appendChild(row);
+    });
+    el.messages.scrollTop = el.messages.scrollHeight;
+  }
+
+  function renderHeader() {
+    var conv = findConversation(currentConversationId);
+    el.title.textContent = conv ? conv.title : "会話を選択してください";
+  }
+
+  function refreshAll() {
+    renderSidebar();
+    renderMessages();
+    renderHeader();
+    updateInputEnabled();
+  }
+
+  // ---------- 会話操作 ----------
+  function createConversation() {
+    var now = Date.now();
+    var conv = { id: "c" + now + "_" + Math.random().toString(36).slice(2, 7),
+                 title: "新しい会話", createdAt: now, updatedAt: now, messages: [] };
+    if (settings.historyEnabled) {
+      persistedConversations.unshift(conv);
+      persistConversations(persistedConversations);
+    } else {
+      conv.title = "新しい会話（未保存）";
+      sessionConversations.unshift(conv);
+    }
+    currentConversationId = conv.id;
+    updateStatusForKeyState();
+    refreshAll();
+  }
+
+  function selectConversation(id) {
+    currentConversationId = id;
+    updateStatusForKeyState();
+    refreshAll();
+  }
+
+  function deleteConversation(id) {
+    if (!confirm("この会話と発言をすべて削除します。よろしいですか？")) return;
+    var pIdx = persistedConversations.findIndex(function (c) { return c.id === id; });
+    if (pIdx !== -1) {
+      persistedConversations.splice(pIdx, 1);
+      persistConversations(persistedConversations);
+    } else {
+      var sIdx = sessionConversations.findIndex(function (c) { return c.id === id; });
+      if (sIdx !== -1) sessionConversations.splice(sIdx, 1);
+    }
+    if (currentConversationId === id) currentConversationId = null;
+    refreshAll();
+  }
+
+  function touchConversation(conv) {
+    conv.updatedAt = Date.now();
+    if (isPersisted(conv)) persistConversations(persistedConversations);
+  }
+
+  // ---------- Claude API ----------
+  function trimHistory(turns, max) {
+    max = max || 40;
+    if (turns.length <= max) return turns;
+    return turns.slice(turns.length - max);
+  }
+
+  function callClaude(apiKey, model, turns, systemInstruction) {
+    var body = { model: model, max_tokens: 4096, messages: turns };
+    if (systemInstruction) body.system = systemInstruction;
+    return fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      body: JSON.stringify(body)
+    }).then(function (res) {
+      return res.json().then(function (data) {
+        if (res.ok) {
+          var text = (data.content || []).filter(function (b) { return b.type === "text"; })
+                        .map(function (b) { return b.text; }).join("").trim();
+          return text;
+        }
+        var err;
+        if (res.status === 401 || res.status === 403) {
+          err = "Claude APIキーが正しくありません。設定を確認してください。";
+        } else if (res.status === 429) {
+          err = "利用上限に達しています。しばらく時間をおいて再試行してください。";
+        } else if (res.status >= 500) {
+          err = "Claude側で一時的なエラーが発生しました。時間をおいて再試行してください。";
+        } else {
+          err = "Claude APIエラー（コード: " + res.status + "）";
+        }
+        throw new Error(err);
+      });
+    }, function () {
+      throw new Error("ネットワークに接続できませんでした。接続を確認してください。");
+    });
+  }
+
+  function sendMessage() {
+    var text = el.input.value.trim();
+    if (!text) return;
+    var apiKey = getClaudeKey();
+    if (!apiKey) {
+      setStatus(STATUS.ERROR);
+      alert("Claude APIキーが未設定です。設定画面で登録してください。");
+      openSettings();
+      return;
+    }
+    var conv = findConversation(currentConversationId);
+    if (!conv) return;
+
+    var wasEmpty = conv.messages.length === 0;
+    conv.messages.push({ role: "user", content: text, createdAt: Date.now() });
+    if (wasEmpty) conv.title = makeTitle(text) || conv.title;
+    touchConversation(conv);
+
+    el.input.value = "";
+    autoGrowInput();
+    setStatus(STATUS.GENERATING);
+    refreshAll();
+
+    var turns = trimHistory(conv.messages.map(function (m) { return { role: m.role, content: m.content }; }));
+    var task = { cancelled: false };
+    currentTask = task;
+
+    callClaude(apiKey, settings.claudeModel, turns, settings.systemInstruction).then(function (reply) {
+      if (task.cancelled) return;
+      conv.messages.push({ role: "assistant", content: reply, createdAt: Date.now() });
+      touchConversation(conv);
+      setStatus(STATUS.DONE);
+      refreshAll();
+    }).catch(function (err) {
+      if (task.cancelled) return;
+      // 入力文は既にユーザー発言として保存・表示済みのため失われない。
+      setStatus(STATUS.ERROR);
+      alert(err.message || "予期しないエラーが発生しました。");
+      refreshAll();
+    });
+  }
+
+  function cancelCurrent() {
+    if (currentTask) currentTask.cancelled = true;
+    if (recognizing && recognition) recognition.stop();
+    updateStatusForKeyState();
+  }
+
+  // ---------- 音声入力 (Web Speech API / Safari標準・動作保証なし) ----------
+  function setupSpeechRecognition() {
+    var Impl = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!Impl) {
+      el.speechNote.textContent = "この端末のSafariは音声認識(Web Speech API)に対応していないようです。テキスト入力をご利用ください。";
+      el.micBtn.style.display = "none";
+      return;
+    }
+    el.speechNote.textContent = "音声入力はSafari標準のWeb Speech APIを使用します（Apple/Google非公式・動作保証なし）。";
+    recognition = new Impl();
+    recognition.lang = "ja-JP";
+    recognition.interimResults = true;
+    recognition.continuous = false;
+
+    recognition.onresult = function (event) {
+      var text = "";
+      for (var i = 0; i < event.results.length; i++) text += event.results[i][0].transcript;
+      el.input.value = text;
+      autoGrowInput();
+    };
+    recognition.onerror = function () {
+      recognizing = false;
+      el.micBtn.classList.remove("recording");
+      updateStatusForKeyState();
+      alert("音声認識でエラーが発生しました。マイクの許可設定を確認するか、テキストで入力してください。");
+    };
+    recognition.onend = function () {
+      recognizing = false;
+      el.micBtn.classList.remove("recording");
+      if (el.statusText.textContent === STATUS.RECORDING) updateStatusForKeyState();
+      updateInputEnabled();
+    };
+  }
+
+  function toggleRecording() {
+    if (!recognition) return;
+    if (recognizing) {
+      recognition.stop();
+      return;
+    }
+    try {
+      recognition.start();
+      recognizing = true;
+      el.micBtn.classList.add("recording");
+      setStatus(STATUS.RECORDING);
+    } catch (e) {
+      alert("マイクを開始できませんでした。");
+    }
+  }
+
+  // ---------- 設定画面 ----------
+  function openSettings() {
+    el.claudeKeyInput.value = "";
+    var existing = getClaudeKey();
+    el.claudeKeyHint.textContent = existing ? "設定済み（" + maskKey(existing) + "）" : "未設定";
+    el.claudeModelInput.value = settings.claudeModel;
+    el.systemInstructionInput.value = settings.systemInstruction;
+    el.historyToggle.checked = settings.historyEnabled;
+    el.settingsModal.classList.add("open");
+  }
+  function closeSettings() { el.settingsModal.classList.remove("open"); }
+
+  function testClaudeConnection() {
+    var key = el.claudeKeyInput.value.trim() || getClaudeKey();
+    if (!key) { alert("Claude APIキーを入力してください。"); return; }
+    var model = el.claudeModelInput.value.trim() || settings.claudeModel;
+    el.testClaudeBtn.disabled = true;
+    callClaude(key, model, [{ role: "user", content: "ping" }], null).then(function () {
+      alert("Claude APIに接続できました。");
+    }).catch(function (err) {
+      alert(err.message || "接続に失敗しました。");
+    }).finally(function () { el.testClaudeBtn.disabled = false; });
+  }
+
+  function saveSettingsFromForm() {
+    var typedKey = el.claudeKeyInput.value.trim();
+    if (typedKey) setClaudeKey(typedKey);
+    settings.claudeModel = el.claudeModelInput.value.trim() || defaultSettings.claudeModel;
+    settings.systemInstruction = el.systemInstructionInput.value;
+    settings.historyEnabled = el.historyToggle.checked;
+    saveSettings(settings);
+    closeSettings();
+    updateStatusForKeyState();
+    refreshAll();
+  }
+
+  // ---------- サイドバー開閉 ----------
+  function openSidebar() {
+    el.sidebar.classList.add("open");
+    el.sidebarOverlay.classList.add("open");
+  }
+  function closeSidebar() {
+    el.sidebar.classList.remove("open");
+    el.sidebarOverlay.classList.remove("open");
+  }
+
+  function autoGrowInput() {
+    el.input.style.height = "auto";
+    el.input.style.height = Math.min(el.input.scrollHeight, 110) + "px";
+    updateInputEnabled();
+  }
+
+  // ---------- イベント登録 ----------
+  el.openSidebarBtn.addEventListener("click", openSidebar);
+  el.sidebarOverlay.addEventListener("click", closeSidebar);
+  el.newConvBtn.addEventListener("click", function () { createConversation(); closeSidebar(); });
+  el.sidebarSettingsBtn.addEventListener("click", function () { openSettings(); closeSidebar(); });
+  el.openSettingsBtn.addEventListener("click", openSettings);
+  el.closeSettingsBtn.addEventListener("click", closeSettings);
+  el.testClaudeBtn.addEventListener("click", testClaudeConnection);
+  el.saveSettingsBtn.addEventListener("click", saveSettingsFromForm);
+  el.sendBtn.addEventListener("click", sendMessage);
+  el.cancelBtn.addEventListener("click", cancelCurrent);
+  el.micBtn.addEventListener("click", toggleRecording);
+  el.input.addEventListener("input", autoGrowInput);
+
+  // ---------- 初期化 ----------
+  setupSpeechRecognition();
+  updateStatusForKeyState();
+  refreshAll();
+  if (!getClaudeKey()) {
+    setTimeout(function () {
+      alert("利用を開始するには、Claude APIキーの登録が必要です。設定画面で登録してください。");
+      openSettings();
+    }, 200);
+  }
+})();
+</script>
+</body>
+</html>
