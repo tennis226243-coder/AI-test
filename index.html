@@ -4,6 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>個人用AIエージェント（テスト版）</title>
+
+<!-- PWA / ホーム画面追加対応 -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#05070d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="AIエージェント">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="icon-192.png">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
@@ -1252,6 +1263,15 @@
       alert("利用を開始するには、Gemini APIキーの登録が必要です。設定画面で登録してください。");
       openSettings();
     }, 200);
+  }
+
+  // PWA: Service Workerを登録（ホーム画面に追加した際、独立したアプリのように動作させる）
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function () {
+        // 登録に失敗してもアプリ本体の動作には影響しないため、静かに無視する
+      });
+    });
   }
 })();
 </script>
